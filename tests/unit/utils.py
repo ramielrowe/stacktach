@@ -3,15 +3,7 @@ import os
 import sys
 import unittest
 
-INSTANCE_ID_1 = 'testinstanceid1'
-INSTANCE_ID_2 = 'testinstanceid2'
-
-MESSAGE_ID_1 = 'testmessageid1'
-MESSAGE_ID_2 = 'testmessageid2'
-
-REQUEST_ID_1 = 'testrequestid1'
-REQUEST_ID_2 = 'testrequestid2'
-REQUEST_ID_3 = 'testrequestid3'
+TENANT_ID_1 = 'testtenantid1'
 
 def setup_sys_path():
     sys.path = [os.path.abspath(os.path.dirname('stacktach'))] + sys.path
@@ -31,8 +23,42 @@ setup_sys_path()
 setup_environment()
 from stacktach import datetime_to_decimal as dt
 
-def decimal_utcnow():
-    return dt.dt_to_decimal(datetime.datetime.utcnow())
+INSTANCE_ID_1 = 'testinstanceid1'
+INSTANCE_ID_2 = 'testinstanceid2'
+
+MESSAGE_ID_1 = 'testmessageid1'
+MESSAGE_ID_2 = 'testmessageid2'
+
+REQUEST_ID_1 = 'testrequestid1'
+REQUEST_ID_2 = 'testrequestid2'
+REQUEST_ID_3 = 'testrequestid3'
+
+
+def decimal_utc(t = datetime.datetime.utcnow()):
+    return dt.dt_to_decimal(t)
+
+
+def create_nova_notif(request_id=None, instance=INSTANCE_ID_1, type_id='1',
+                      launched=None, deleted = None, new_type_id=None,
+                      message_id=MESSAGE_ID_1):
+    notif = ['', {
+        'message_id': message_id,
+        'payload': {
+            'instance_id': instance,
+            'instance_type_id': type_id,
+            }
+    }]
+
+    if request_id:
+        notif[1]['_context_request_id'] = request_id
+    if launched:
+        notif[1]['payload']['launched_at'] = launched
+    if deleted:
+        notif[1]['payload']['deleted_at'] = deleted
+    if new_type_id:
+        notif[1]['payload']['new_instance_type_id'] = new_type_id
+
+    return notif
 
 def create_raw(mox, when, event, instance=INSTANCE_ID_1,
                request_id=REQUEST_ID_1, state='active', old_task='',
