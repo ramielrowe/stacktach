@@ -17,6 +17,7 @@ def _extract_states(payload):
     return {
         'state' : payload.get('state', ""),
         'old_state' : payload.get('old_state', ""),
+        'new_task' : payload.get('new_task_state', ""),
         'old_task' : payload.get('old_task_state', "")
     }
 

@@ -36,6 +36,8 @@ class RawData(models.Model):
                              blank=True, db_index=True)
     old_state = models.CharField(max_length=20, null=True,
                              blank=True, db_index=True)
+    new_task = models.CharField(max_length=30, null=True,
+                                blank=True, db_index=True)
     old_task = models.CharField(max_length=30, null=True,
                              blank=True, db_index=True)
     when = models.DecimalField(max_digits=20, decimal_places=6,
