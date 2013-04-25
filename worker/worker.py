@@ -86,7 +86,8 @@ class NovaConsumer(kombu.mixins.ConsumerMixin):
         args = (routing_key, json.loads(body))
         asJson = json.dumps(args)
 
-        raw = views.process_raw_data(self.deployment, args, asJson)
+        raw = views.process_raw_data(self.deployment, args, asJson,
+                                     message.ack)
         if raw:
             self.processed += 1
 
@@ -125,7 +126,6 @@ class NovaConsumer(kombu.mixins.ConsumerMixin):
             self._process(message)
         except Exception, e:
             LOG.exception("Problem %s" % e)
-        message.ack()
 
 
 def continue_running():

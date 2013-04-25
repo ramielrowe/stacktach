@@ -120,15 +120,15 @@ class NovaConsumerTestCase(unittest.TestCase):
         consumer = worker.NovaConsumer('test', None, deployment, True, {})
         routing_key = 'monitor.info'
         message.delivery_info = {'routing_key': routing_key}
-        body_dict = {u'key': u'value'}
+        body_dict = {'key': 'value'}
         message.body = json.dumps(body_dict)
         self.mox.StubOutWithMock(views, 'process_raw_data',
                                  use_mock_anything=True)
         args = (routing_key, body_dict)
-        views.process_raw_data(deployment, args, json.dumps(args))\
-             .AndReturn(raw)
+        views.process_raw_data(deployment, args, json.dumps(args),
+                               message.ack).AndReturn(raw)
         self.mox.StubOutWithMock(consumer, '_check_memory',
-                                use_mock_anything=True)
+                                 use_mock_anything=True)
         consumer._check_memory()
         self.mox.ReplayAll()
         consumer._process(message)
