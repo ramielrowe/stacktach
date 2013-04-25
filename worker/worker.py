@@ -86,10 +86,11 @@ class NovaConsumer(kombu.mixins.ConsumerMixin):
         args = (routing_key, json.loads(body))
         asJson = json.dumps(args)
 
-        raw = views.process_raw_data(self.deployment, args, asJson,
-                                     message.ack)
-        if raw:
+        def ack():
+            message.ack()
             self.processed += 1
+
+        raw = views.process_raw_data(self.deployment, args, asJson, ack)
 
         self._check_memory()
 

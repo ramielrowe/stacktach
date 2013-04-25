@@ -125,8 +125,14 @@ class NovaConsumerTestCase(unittest.TestCase):
         self.mox.StubOutWithMock(views, 'process_raw_data',
                                  use_mock_anything=True)
         args = (routing_key, body_dict)
+
+        def ack_message(deployment, args, json, ack_func):
+            ack_func()
+
         views.process_raw_data(deployment, args, json.dumps(args),
-                               message.ack).AndReturn(raw)
+                               mox.IgnoreArg()).WithSideEffects(ack_message)\
+                                               .AndReturn(raw)
+        message.ack()
         self.mox.StubOutWithMock(consumer, '_check_memory',
                                  use_mock_anything=True)
         consumer._check_memory()
