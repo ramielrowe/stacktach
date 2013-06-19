@@ -3,7 +3,7 @@
 virtualenv --no-site-packages ".venv"
 . .venv/bin/activate
 ./.venv/bin/easy_install pip
-./.venv/bin/pip install -r etc/pip-requires.txt
 ./.venv/bin/pip install -r etc/test-requires.txt
+./.venv/bin/pip install -r etc/pip-requires.txt
 ./.venv/bin/easy_install django
 ./.venv/bin/nosetests tests --exclude-dir=stacktach --with-coverage --cover-package=stacktach,worker,verifier --cover-erase
