@@ -1,0 +1,4 @@
+nose==1.2.1
+mox
+nose-exclude==0.1.9
+coverage
