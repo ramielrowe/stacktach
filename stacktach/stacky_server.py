@@ -13,6 +13,17 @@ from django.core.exceptions import ObjectDoesNotExist, FieldError
 
 SECS_PER_HOUR = 60 * 60
 SECS_PER_DAY = SECS_PER_HOUR * 24
+DEFAULT_LIMIT = 50
+HARD_LIMIT = 1000
+
+
+def _get_limit(request):
+    limit = request.GET.get('limit', DEFAULT_LIMIT)
+    if limit:
+        limit = int(limit)
+    if limit > HARD_LIMIT:
+        limit = HARD_LIMIT
+    return limit
 
 
 def get_event_names(service='nova'):
@@ -105,25 +116,47 @@ def do_hosts(request):
     return rsp(json.dumps(results))
 
 
+def _search_raws(request, service, field, value,
+                 related=False, order_by=None):
+    limit = _get_limit(request)
+    model = _model_factory(service)
+    filter_para = {field: value}
+    results = []
+    try:
+        events = model
+        if related:
+            events = events.select_related()
+
+        events = events.filter(**filter_para)
+
+        if order_by:
+            events = events.order_by(order_by)
+
+        if limit:
+            events = events[:limit]
+
+        for event in events:
+            when = dt.dt_from_decimal(event.when)
+            routing_key_status = routing_key_type(event.routing_key)
+            results = event.search_results(results, when, routing_key_status)
+        return results
+    except ObjectDoesNotExist or FieldError:
+        return []
+
+
 def do_uuid(request, service='nova'):
     uuid = str(request.GET['uuid'])
     if not utils.is_uuid_like(uuid):
         msg = "%s is not uuid-like" % uuid
         return error_response(400, 'Bad Request', msg)
-    model = _model_factory(service)
-    result = []
-    param = {}
-    if service == 'nova' or service == 'generic':
-        param = {'instance': uuid}
-    if service == 'glance':
-        param = {'uuid': uuid}
 
-    related = model.select_related().filter(**param).order_by('when')
-    for event in related:
-        when = dt.dt_from_decimal(event.when)
-        routing_key_status = routing_key_type(event.routing_key)
-        result = event.search_results(result, when, routing_key_status)
-    return rsp(json.dumps(result))
+    field = 'instance'
+    if service == 'glance':
+        field = 'uuid'
+
+    results = _search_raws(request, service, field, uuid,
+                           related=True, order_by='when')
+    return rsp(json.dumps(results))
 
 
 def do_timings_uuid(request):
@@ -194,15 +227,8 @@ def do_request(request):
         msg = "%s is not request-id-like" % request_id
         return error_response(400, 'Bad Request', msg)
 
-    events = models.RawData.objects.filter(request_id=request_id) \
-                                   .order_by('when')
-    results = [["#", "?", "When", "Deployment", "Event", "Host",
-                "State", "State'", "Task'"]]
-    for e in events:
-        when = dt.dt_from_decimal(e.when)
-        results.append([e.id, routing_key_type(e.routing_key), str(when),
-                        e.deployment.name, e.event, e.host, e.state,
-                        e.old_state, e.old_task])
+    results = _search_raws(request, 'nova', 'request_id', request_id,
+                           order_by='when')
     return rsp(json.dumps(results))
 
 
@@ -486,23 +512,7 @@ def do_jsonreport(request, report_id):
 
 
 def search(request, service):
-    DEFAULT = 1000
     field = request.GET.get('field')
     value = request.GET.get('value')
-    limit = request.GET.get('limit', DEFAULT)
-    limit = int(limit)
-    model = _model_factory(service)
-    filter_para = {field: value}
-    results = []
-    try:
-        events = model.filter(**filter_para)
-        event_len = len(events)
-        if event_len > limit:
-            events = events[0:limit]
-        for event in events:
-            when = dt.dt_from_decimal(event.when)
-            routing_key_status = routing_key_type(event.routing_key)
-            results = event.search_results(results, when, routing_key_status)
-        return rsp(json.dumps(results))
-    except ObjectDoesNotExist or FieldError:
-        return rsp([])
+    results = _search_raws(request, service, field, value)
+    return rsp(json.dumps(results))
