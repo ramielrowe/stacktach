@@ -465,13 +465,13 @@ class NovaJSONBridgeClientTestCase(StacktachBaseTestCase):
         response.json().AndReturn(result)
 
     def _fake_instance(self, uuid=INSTANCE_ID_1, launched_at=None,
-                      terminated_at=None, deleted=0, instance_type_id=1,
-                      project_id=TENANT_ID_1):
+                       terminated_at=None, deleted=False, instance_type_id=1,
+                       project_id=TENANT_ID_1):
         return {
             'uuid': uuid,
             'launched_at': launched_at,
             'terminated_at': terminated_at,
-            'deleted': deleted,
+            'vm_state': 'deleted' if deleted else 'active',
             'instance_type_id': instance_type_id,
             'project_id': project_id
         }

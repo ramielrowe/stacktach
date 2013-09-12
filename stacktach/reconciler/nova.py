@@ -22,6 +22,8 @@ SELECT * FROM instance_system_metadata
 """
 GET_INSTANCE_SYSTEM_METADATA %= ('%s', METADATA_FIELDS)
 
+DELETED_VM_STATE = 'deleted'
+
 
 def _json(result):
     if callable(result.json):
@@ -61,7 +63,7 @@ class JSONBridgeClient(object):
             deleted_at = stackutils.str_time_to_unix(instance['terminated_at'])
             r_instance['deleted_at'] = deleted_at
 
-        if instance['deleted'] != 0:
+        if instance['vm_state'] == DELETED_VM_STATE:
             r_instance['deleted'] = True
 
         if metadata is not None:
