@@ -183,7 +183,7 @@ class Verifier(object):
     def verify_for_range(self, ending_max, callback=None):
         pass
 
-    def reconcile_failed(self):
+    def reconcile_failed(self, callback=None):
         pass
 
     def exchange(self):
