@@ -149,7 +149,7 @@ class Verifier(object):
                 new = self.verify_for_range(ending_max, callback=callback)
                 values = ((self.exchange(), new,) + self.clean_results())
                 if self.reconciler:
-                    self.reconcile_failed()
+                    self.reconcile_failed(callback=callback)
                 msg = "%s: N: %s, P: %s, S: %s, E: %s" % values
                 LOG.info(msg)
             time.sleep(tick_time)
