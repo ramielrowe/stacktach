@@ -20,6 +20,8 @@
 
 import datetime
 
+import mox
+
 TENANT_ID_1 = 'testtenantid1'
 TENANT_ID_2 = 'testtenantid2'
 
@@ -64,6 +66,15 @@ PORT = '5672'
 VIRTUAL_HOST = '/'
 USERID = 'rabbit'
 PASSWORD = 'password'
+
+
+class IsCallable(mox.Comparator):
+    def equals(self, rhs):
+        return callable(rhs)
+
+    def __repr__(self):
+        return "<is Callable>"
+
 
 def decimal_utc(t = datetime.datetime.utcnow()):
     return dt.dt_to_decimal(t)
