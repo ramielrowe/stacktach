@@ -27,6 +27,7 @@ import os
 sys.path.append(os.environ.get('STACKTACH_INSTALL_DIR', '/stacktach'))
 
 from django.db.models import F
+from django.db.models import Q
 
 from stacktach import datetime_to_decimal as dt
 from stacktach import models
@@ -218,13 +219,18 @@ def _verifier_audit_for_day(beginning, ending):
 
     filters = {
         'raw__when__gte': beginning,
-        'raw__when__lte': ending,
-        'status': models.InstanceExists.FAILED
+        'raw__when__lte': ending
     }
-    failed = models.InstanceExists.objects.filter(**filters)
+    status = (Q(status=models.InstanceExists.FAILED) |
+              Q(status=models.InstanceExists.INITIAL_RECONCILE))
+
+    failed = models.InstanceExists.objects.filter(**filters).filter(status)
     detail = []
     for exist in failed:
-        detail.append(['Exist', exist.id, exist.fail_reason])
+        reconciled = 'N'
+        if exist.status == models.InstanceExists.INITIAL_RECONCILE:
+            reconciled = 'Y'
+        detail.append(['Exist', exist.id, exist.fail_reason, reconciled])
     return summary, detail
 
 
