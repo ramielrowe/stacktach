@@ -176,16 +176,23 @@ def _process_usage_for_new_launch(raw, notification):
                      INSTANCE_EVENT['rebuild_start'],
                      INSTANCE_EVENT['rescue_start']]:
         usage.instance_type_id = notification.instance_type_id
+    elif (raw.event in INSTANCE_EVENT.values() and
+          usage.instance_type_id is None):
+        # We need to pre-populate instance_type_id just in-case the action
+        #     spans an audit period, or if the action errors out and another
+        #     action is started. Otherwise, the following exist will contain
+        #     information for a partially modified instance.
+        usage.instance_type_id = notification.instance_type_id
 
     if raw.event in [INSTANCE_EVENT['rebuild_start'],
                      INSTANCE_EVENT['resize_prep_start'],
                      INSTANCE_EVENT['resize_revert_start'],
                      INSTANCE_EVENT['rescue_start']] and\
             usage.launched_at is None:
-        # Grab the launched_at so if this action spans the audit period,
-        #     we will have a launch record corresponding to the exists.
-        #     We don't want to override a launched_at if it is already set
-        #     though, because we may have already received the end event
+        # We need to pre-populate launched_at just in-case the action spans
+        #     an audit period, or if the action errors out and another action
+        #     is started. Otherwise, the following exist will contain
+        #     information for a partially modified instance.
         usage.launched_at = utils.str_time_to_unix(notification.launched_at)
 
     usage.tenant = notification.tenant
@@ -212,11 +219,24 @@ def _process_usage_for_updates(raw, notification):
                      INSTANCE_EVENT['resize_revert_end'],
                      INSTANCE_EVENT['rescue_end']]:
         usage.launched_at = utils.str_time_to_unix(notification.launched_at)
+    elif raw.event in INSTANCE_EVENT.values() and usage.launched_at is None:
+        # We need to pre-populate launched_at just in-case the action spans
+        #     an audit period, or if the action errors out and another action
+        #     is started. Otherwise, the following exist will contain
+        #     information for a partially modified instance.
+        usage.launched_at = utils.str_time_to_unix(notification.launched_at)
 
     if raw.event == INSTANCE_EVENT['resize_revert_end']:
         usage.instance_type_id = notification.instance_type_id
     elif raw.event == INSTANCE_EVENT['resize_prep_end']:
         usage.instance_type_id = notification.new_instance_type_id
+    elif (raw.event in INSTANCE_EVENT.values() and
+          usage.instance_type_id is None):
+        # We need to pre-populate instance_type_id just in-case the action
+        #     spans an audit period, or if the action errors out and another
+        #     action is started. Otherwise, the following exist will contain
+        #     information for a partially modified instance.
+        usage.instance_type_id = notification.instance_type_id
 
     usage.tenant = notification.tenant
     usage.rax_options = notification.rax_options

@@ -34,6 +34,7 @@ from utils import REQUEST_ID_1
 from utils import TENANT_ID_1
 from utils import INSTANCE_TYPE_ID_1
 from utils import DUMMY_TIME
+from utils import DECIMAL_DUMMY_TIME
 from utils import INSTANCE_TYPE_ID_2
 from utils import IMAGE_UUID_1
 from stacktach import stacklog
@@ -509,6 +510,66 @@ class StacktachUsageParsingTestCase(StacktachBaseTestCase):
 
         self.mox.VerifyAll()
 
+    def test_resize_revert_start_prepopulate_instance_type_id(self):
+        notification = self.mox.CreateMockAnything()
+        notification.launched_at = str(DUMMY_TIME)
+        notification.tenant = TENANT_ID_1
+        notification.rax_options = RAX_OPTIONS_1
+        notification.os_architecture = OS_ARCH_1
+        notification.os_version = OS_VERSION_1
+        notification.os_distro = OS_DISTRO_1
+        notification.instance = INSTANCE_ID_1
+        notification.request_id = REQUEST_ID_1
+        notification.instance_type_id = INSTANCE_TYPE_ID_1
+
+        raw = self.mox.CreateMockAnything()
+        raw.event = 'compute.instance.resize.revert.start'
+
+        usage = self.mox.CreateMockAnything()
+        usage.instance_type_id = None
+        views.STACKDB.get_or_create_instance_usage(instance=INSTANCE_ID_1,
+                                                   request_id=REQUEST_ID_1) \
+            .AndReturn((usage, True))
+        views.STACKDB.save(usage)
+        self.mox.ReplayAll()
+
+        views._process_usage_for_new_launch(raw, notification)
+
+        self.assertEquals(usage.tenant, TENANT_ID_1)
+        self.assertEqual(usage.instance_type_id, INSTANCE_TYPE_ID_1)
+
+        self.mox.VerifyAll()
+
+    def test_resize_revert_start_doesnt_prepopulate_instance_type_id(self):
+        notification = self.mox.CreateMockAnything()
+        notification.launched_at = str(DUMMY_TIME)
+        notification.tenant = TENANT_ID_1
+        notification.rax_options = RAX_OPTIONS_1
+        notification.os_architecture = OS_ARCH_1
+        notification.os_version = OS_VERSION_1
+        notification.os_distro = OS_DISTRO_1
+        notification.instance = INSTANCE_ID_1
+        notification.request_id = REQUEST_ID_1
+        notification.instance_type_id = INSTANCE_TYPE_ID_1
+
+        raw = self.mox.CreateMockAnything()
+        raw.event = 'compute.instance.resize.revert.start'
+
+        usage = self.mox.CreateMockAnything()
+        usage.instance_type_id = INSTANCE_TYPE_ID_2
+        views.STACKDB.get_or_create_instance_usage(instance=INSTANCE_ID_1,
+                                                   request_id=REQUEST_ID_1) \
+            .AndReturn((usage, True))
+        views.STACKDB.save(usage)
+        self.mox.ReplayAll()
+
+        views._process_usage_for_new_launch(raw, notification)
+
+        self.assertEquals(usage.tenant, TENANT_ID_1)
+        self.assertEqual(usage.instance_type_id, INSTANCE_TYPE_ID_2)
+
+        self.mox.VerifyAll()
+
     def test_process_usage_for_new_launch_resize_prep_start_when_launched_at_in_db(self):
         notification = self.mox.CreateMockAnything()
         notification.launched_at = str(DUMMY_TIME)
@@ -649,6 +710,113 @@ class StacktachUsageParsingTestCase(StacktachBaseTestCase):
 
         self.mox.VerifyAll()
 
+    def test_process_usage_for_updates_rebuild_end(self):
+        notification = self.mox.CreateMockAnything()
+        notification.launched_at = str(DUMMY_TIME)
+        notification.tenant = TENANT_ID_1
+        notification.rax_options = RAX_OPTIONS_1
+        notification.os_architecture = OS_ARCH_1
+        notification.os_version = OS_VERSION_1
+        notification.os_distro = OS_DISTRO_1
+        notification.instance = INSTANCE_ID_1
+        notification.request_id = REQUEST_ID_1
+        notification.instance_type_id = INSTANCE_TYPE_ID_1
+        notification.message = None
+
+        raw = self.mox.CreateMockAnything()
+        raw.event = 'compute.instance.rebuild.end'
+
+        usage = self.mox.CreateMockAnything()
+        usage.launched_at = None
+        views.STACKDB.get_or_create_instance_usage(instance=INSTANCE_ID_1,
+                                                   request_id=REQUEST_ID_1) \
+            .AndReturn((usage, True))
+        views.STACKDB.save(usage)
+        self.mox.ReplayAll()
+
+        views._process_usage_for_updates(raw, notification)
+
+        self.assertEqual(usage.launched_at, utils.decimal_utc(DUMMY_TIME))
+        self.assertEqual(usage.tenant, TENANT_ID_1)
+        self.assertEquals(usage.os_architecture, OS_ARCH_1)
+        self.assertEquals(usage.os_version, OS_VERSION_1)
+        self.assertEquals(usage.os_distro, OS_DISTRO_1)
+        self.assertEquals(usage.rax_options, RAX_OPTIONS_1)
+
+        self.mox.VerifyAll()
+
+    def test_process_usage_for_updates_rebuild_end_overwrites_prepopulated_launched_at(self):
+        notification = self.mox.CreateMockAnything()
+        notification.launched_at = str(DUMMY_TIME)
+        notification.tenant = TENANT_ID_1
+        notification.rax_options = RAX_OPTIONS_1
+        notification.os_architecture = OS_ARCH_1
+        notification.os_version = OS_VERSION_1
+        notification.os_distro = OS_DISTRO_1
+        notification.instance = INSTANCE_ID_1
+        notification.request_id = REQUEST_ID_1
+        notification.instance_type_id = INSTANCE_TYPE_ID_1
+        notification.message = None
+
+        raw = self.mox.CreateMockAnything()
+        raw.event = 'compute.instance.rebuild.end'
+
+        usage = self.mox.CreateMockAnything()
+        usage.launched_at = DECIMAL_DUMMY_TIME - 60
+        views.STACKDB.get_or_create_instance_usage(instance=INSTANCE_ID_1,
+                                                   request_id=REQUEST_ID_1) \
+            .AndReturn((usage, True))
+        views.STACKDB.save(usage)
+        self.mox.ReplayAll()
+
+        views._process_usage_for_updates(raw, notification)
+
+        self.assertEqual(usage.launched_at, utils.decimal_utc(DUMMY_TIME))
+        self.assertEqual(usage.tenant, TENANT_ID_1)
+        self.assertEquals(usage.os_architecture, OS_ARCH_1)
+        self.assertEquals(usage.os_version, OS_VERSION_1)
+        self.assertEquals(usage.os_distro, OS_DISTRO_1)
+        self.assertEquals(usage.rax_options, RAX_OPTIONS_1)
+
+        self.mox.VerifyAll()
+
+    def test_process_usage_for_updates_rebuild_end_prepopulates_instance_type_id(self):
+        notification = self.mox.CreateMockAnything()
+        notification.launched_at = str(DUMMY_TIME)
+        notification.tenant = TENANT_ID_1
+        notification.rax_options = RAX_OPTIONS_1
+        notification.os_architecture = OS_ARCH_1
+        notification.os_version = OS_VERSION_1
+        notification.os_distro = OS_DISTRO_1
+        notification.instance = INSTANCE_ID_1
+        notification.request_id = REQUEST_ID_1
+        notification.instance_type_id = INSTANCE_TYPE_ID_1
+        notification.message = None
+
+        raw = self.mox.CreateMockAnything()
+        raw.event = 'compute.instance.rebuild.end'
+
+        usage = self.mox.CreateMockAnything()
+        usage.launched_at = DECIMAL_DUMMY_TIME - 60
+        usage.instance_type_id = None
+        views.STACKDB.get_or_create_instance_usage(instance=INSTANCE_ID_1,
+                                                   request_id=REQUEST_ID_1) \
+            .AndReturn((usage, True))
+        views.STACKDB.save(usage)
+        self.mox.ReplayAll()
+
+        views._process_usage_for_updates(raw, notification)
+
+        self.assertEqual(usage.launched_at, utils.decimal_utc(DUMMY_TIME))
+        self.assertEqual(usage.instance_type_id, INSTANCE_TYPE_ID_1)
+        self.assertEqual(usage.tenant, TENANT_ID_1)
+        self.assertEquals(usage.os_architecture, OS_ARCH_1)
+        self.assertEquals(usage.os_version, OS_VERSION_1)
+        self.assertEquals(usage.os_distro, OS_DISTRO_1)
+        self.assertEquals(usage.rax_options, RAX_OPTIONS_1)
+
+        self.mox.VerifyAll()
+
     def test_process_usage_for_updates_create_end_success_message(self):
         notification = self.mox.CreateMockAnything()
         notification.launched_at = str(DUMMY_TIME)
@@ -732,7 +900,81 @@ class StacktachUsageParsingTestCase(StacktachBaseTestCase):
 
         self.mox.VerifyAll()
 
-    def test_process_usage_for_updates_prep_end(self):
+    def test_revert_end_overwrites_prepopulated_instance_type_id(self):
+        notification = self.mox.CreateMockAnything()
+        notification.launched_at = str(DUMMY_TIME)
+        notification.tenant = TENANT_ID_1
+        notification.rax_options = RAX_OPTIONS_1
+        notification.os_architecture = OS_ARCH_1
+        notification.os_version = OS_VERSION_1
+        notification.os_distro = OS_DISTRO_1
+        notification.instance = INSTANCE_ID_1
+        notification.request_id = REQUEST_ID_1
+        notification.instance_type_id = INSTANCE_TYPE_ID_1
+        notification.message = None
+
+        raw = self.mox.CreateMockAnything()
+        raw.event = 'compute.instance.resize.revert.end'
+
+        usage = self.mox.CreateMockAnything()
+        usage.launched_at = None
+        usage.instance_type_id = INSTANCE_TYPE_ID_2
+        views.STACKDB.get_or_create_instance_usage(instance=INSTANCE_ID_1,
+                                                   request_id=REQUEST_ID_1) \
+            .AndReturn((usage, True))
+        views.STACKDB.save(usage)
+        self.mox.ReplayAll()
+
+        views._process_usage_for_updates(raw, notification)
+
+        self.assertEqual(usage.instance_type_id, INSTANCE_TYPE_ID_1)
+        self.assertEqual(usage.launched_at, utils.decimal_utc(DUMMY_TIME))
+        self.assertEquals(usage.tenant, TENANT_ID_1)
+        self.assertEquals(usage.os_architecture, OS_ARCH_1)
+        self.assertEquals(usage.os_version, OS_VERSION_1)
+        self.assertEquals(usage.os_distro, OS_DISTRO_1)
+        self.assertEquals(usage.rax_options, RAX_OPTIONS_1)
+
+        self.mox.VerifyAll()
+
+    def test_process_usage_for_updates_prep_end_doesnt_prepopulate_launched_at(self):
+        notification = self.mox.CreateMockAnything()
+        notification.launched_at = str(DUMMY_TIME)
+        notification.tenant = TENANT_ID_1
+        notification.rax_options = RAX_OPTIONS_1
+        notification.os_architecture = OS_ARCH_1
+        notification.os_version = OS_VERSION_1
+        notification.os_distro = OS_DISTRO_1
+        notification.instance = INSTANCE_ID_1
+        notification.request_id = REQUEST_ID_1
+        notification.new_instance_type_id = INSTANCE_TYPE_ID_2
+        notification.message = None
+
+        raw = self.mox.CreateMockAnything()
+        raw.event = 'compute.instance.resize.prep.end'
+
+        usage = self.mox.CreateMockAnything()
+        new_launched_at = DECIMAL_DUMMY_TIME + 60
+        usage.launched_at = new_launched_at
+        views.STACKDB.get_or_create_instance_usage(instance=INSTANCE_ID_1,
+                                                   request_id=REQUEST_ID_1) \
+            .AndReturn((usage, True))
+        views.STACKDB.save(usage)
+        self.mox.ReplayAll()
+
+        views._process_usage_for_updates(raw, notification)
+
+        self.assertEqual(usage.launched_at, new_launched_at)
+        self.assertEqual(usage.instance_type_id, INSTANCE_TYPE_ID_2)
+        self.assertEqual(usage.tenant, TENANT_ID_1)
+        self.assertEqual(usage.os_architecture, OS_ARCH_1)
+        self.assertEqual(usage.os_version, OS_VERSION_1)
+        self.assertEqual(usage.os_distro, OS_DISTRO_1)
+        self.assertEqual(usage.rax_options, RAX_OPTIONS_1)
+
+        self.mox.VerifyAll()
+
+    def test_process_usage_for_updates_prep_end_prepopulates_launched_at(self):
         notification = self.mox.CreateMockAnything()
         notification.launched_at = str(DUMMY_TIME)
         notification.tenant = TENANT_ID_1
@@ -758,12 +1000,50 @@ class StacktachUsageParsingTestCase(StacktachBaseTestCase):
 
         views._process_usage_for_updates(raw, notification)
 
+        self.assertEqual(usage.launched_at, DECIMAL_DUMMY_TIME)
         self.assertEqual(usage.instance_type_id, INSTANCE_TYPE_ID_2)
-        self.assertEquals(usage.tenant, TENANT_ID_1)
-        self.assertEquals(usage.os_architecture, OS_ARCH_1)
-        self.assertEquals(usage.os_version, OS_VERSION_1)
-        self.assertEquals(usage.os_distro, OS_DISTRO_1)
-        self.assertEquals(usage.rax_options, RAX_OPTIONS_1)
+        self.assertEqual(usage.tenant, TENANT_ID_1)
+        self.assertEqual(usage.os_architecture, OS_ARCH_1)
+        self.assertEqual(usage.os_version, OS_VERSION_1)
+        self.assertEqual(usage.os_distro, OS_DISTRO_1)
+        self.assertEqual(usage.rax_options, RAX_OPTIONS_1)
+
+        self.mox.VerifyAll()
+
+    def test_prep_end_overwrites_prepopulated_instance_type_id(self):
+        notification = self.mox.CreateMockAnything()
+        notification.launched_at = str(DUMMY_TIME)
+        notification.tenant = TENANT_ID_1
+        notification.rax_options = RAX_OPTIONS_1
+        notification.os_architecture = OS_ARCH_1
+        notification.os_version = OS_VERSION_1
+        notification.os_distro = OS_DISTRO_1
+        notification.instance = INSTANCE_ID_1
+        notification.request_id = REQUEST_ID_1
+        notification.new_instance_type_id = INSTANCE_TYPE_ID_2
+        notification.message = None
+
+        raw = self.mox.CreateMockAnything()
+        raw.event = 'compute.instance.resize.prep.end'
+
+        usage = self.mox.CreateMockAnything()
+        usage.launched_at = None
+        usage.instance_type_id = INSTANCE_TYPE_ID_1
+        views.STACKDB.get_or_create_instance_usage(instance=INSTANCE_ID_1,
+                                                   request_id=REQUEST_ID_1) \
+            .AndReturn((usage, True))
+        views.STACKDB.save(usage)
+        self.mox.ReplayAll()
+
+        views._process_usage_for_updates(raw, notification)
+
+        self.assertEqual(usage.launched_at, DECIMAL_DUMMY_TIME)
+        self.assertEqual(usage.instance_type_id, INSTANCE_TYPE_ID_2)
+        self.assertEqual(usage.tenant, TENANT_ID_1)
+        self.assertEqual(usage.os_architecture, OS_ARCH_1)
+        self.assertEqual(usage.os_version, OS_VERSION_1)
+        self.assertEqual(usage.os_distro, OS_DISTRO_1)
+        self.assertEqual(usage.rax_options, RAX_OPTIONS_1)
 
         self.mox.VerifyAll()
 
