@@ -20,6 +20,7 @@
 """MongoDB storage backend
 """
 
+import datetime
 import calendar
 import copy
 import operator
@@ -29,6 +30,7 @@ import bson.code
 import bson.objectid
 import json
 import pymongo
+import pymongo.errors
 
 from oslo.config import cfg
 
@@ -67,6 +69,14 @@ class MongoDBStorage(base.StorageEngine):
               project_id: uuid
               meter: [ array of {counter_name: string, counter_type: string,
                                  counter_unit: string} ]
+            }
+        - event
+          - a record of received notifications and their trait
+          - { _id: message_id of the event,
+              event_name: the name of the given event,
+              generated: the datetime the given event was generated,
+              traits: dict of key/value pairs, values can be:
+                      strings, ints, floats, datetimes
             }
     """
 
@@ -958,18 +968,79 @@ class Connection(base.Connection):
         """
         self.db.alarm_history.insert(alarm_change)
 
-    @staticmethod
-    def record_events(events):
+    def record_events(self, events):
         """Write the events.
 
         :param events: a list of model.Event objects.
         """
-        raise NotImplementedError('Events not implemented.')
+        problem_events = []
+        for event in events:
+            record = {
+                '_id': event.message_id,
+                'event_name': event.event_name,
+                'generated': event.generated,
+                'traits': {}
+            }
+
+            if event.traits:
+                for trait in event.traits:
+                    record['traits'][trait.name] = trait.value
+
+            try:
+                self.db.event.insert(record)
+            except pymongo.errors.DuplicateKeyError:
+                problem_events.append((models.Event.DUPLICATE, event))
+            except Exception as e:
+                LOG.exception('Failed to record event: %s', e)
+                problem_events.append((models.Event.UNKNOWN_PROBLEM, event))
+        return problem_events
 
     @staticmethod
-    def get_events(event_filter):
+    def _get_trait_type(value):
+        if isinstance(value, basestring):
+            return models.Trait.TEXT_TYPE
+        elif isinstance(value, int):
+            return models.Trait.INT_TYPE
+        elif isinstance(value, float):
+            return models.Trait.FLOAT_TYPE
+        elif isinstance(value, datetime.datetime):
+            return models.Trait.DATETIME_TYPE
+        else:
+            return models.Trait.TEXT_TYPE
+
+    @staticmethod
+    def _to_trait_models(traits):
+        t_models = []
+        for key, value in traits.iteritems():
+            dtype = Connection._get_trait_type(value)
+            t_models.append(models.Trait(name=key, value=value,
+                                         dtype=dtype))
+        return t_models
+
+    @staticmethod
+    def _to_event_model(event):
+        traits = Connection._to_trait_models(event['traits'])
+        return models.Event(message_id=event['_id'],
+                            event_name=event['event_name'],
+                            generated=event['generated'], traits=traits)
+
+    def get_events(self, event_filter):
         """Return an iterable of model.Event objects.
 
         :param event_filter: EventFilter instance
         """
-        raise NotImplementedError('Events not implemented.')
+        q = {'generated': {'$gte': event_filter.start,
+                           '$lte': event_filter.end}}
+
+        if event_filter.event_name:
+            q['event_name'] = event_filter.event_name
+
+        if event_filter.traits:
+            t_key = event_filter.traits.get('key', '*')
+            for key, value in event_filter.traits.iteritems():
+                if key != 'key':
+                    q['traits.%s' % t_key] = value
+
+        events = self.db.event.find(q)
+        return sorted([Connection._to_event_model(x) for x in events],
+                      key=operator.attrgetter('generated'))
