@@ -102,10 +102,6 @@ class AlarmService(object):
 
     def _evaluate_alarm(self, alarm):
         """Evaluate the alarms assigned to this evaluator."""
-        if not alarm.enabled:
-            LOG.debug(_('skipping alarm %s: alarm disabled') %
-                      alarm.alarm_id)
-            return
         if alarm.type not in self.supported_evaluators:
             LOG.debug(_('skipping alarm %s: type unsupported') %
                       alarm.alarm_id)
@@ -138,7 +134,8 @@ class SingletonAlarmService(AlarmService, os_service.Service):
         self.tg.add_timer(604800, lambda: None)
 
     def _assigned_alarms(self):
-        return self._client.alarms.list()
+        return self._client.alarms.list(q=[{'field': 'enabled',
+                                            'value': True}])
 
 
 def alarm_evaluator():
@@ -234,7 +231,7 @@ class AlarmNotifierService(rpc_service.Service):
         except Exception:
             LOG.error(
                 _("Unable to parse action %(action)s for alarm %(alarm_id)s"),
-                locals())
+                {'action': action, 'alarm_id': alarm_id})
             return
 
         try:
@@ -244,7 +241,7 @@ class AlarmNotifierService(rpc_service.Service):
             LOG.error(
                 _("Action %(scheme)s for alarm %(alarm_id)s is unknown, "
                   "cannot notify"),
-                locals())
+                {'scheme': scheme, 'alarm_id': alarm_id})
             return
 
         try:
