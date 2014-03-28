@@ -277,6 +277,7 @@ class NovaVerifier(base_verifier.Verifier):
         super(NovaVerifier, self).__init__(config,
                                            pool=pool,
                                            reconciler=reconciler)
+        self.pool2 = None
 
     def send_verified_notification(self, exist, connection, exchange,
                                    routing_keys=None):
@@ -299,6 +300,8 @@ class NovaVerifier(base_verifier.Verifier):
                     json_body[1], key, connection, exchange)
 
     def verify_exists(self, callback, exists, verifying_status):
+        if not self.pool2:
+            self.pool2 = base_verifier.VerifierTheadPool(4, _verify, callback)
         count = exists.count()
         added = 0
         update_interval = datetime.timedelta(seconds=30)
@@ -309,7 +312,7 @@ class NovaVerifier(base_verifier.Verifier):
                 exist.update_status(verifying_status)
                 exist.save()
                 validation_level = self.config.validation_level()
-                result = self.pool.apply_async(
+                result = self.pool2.apply_async(
                     _verify, args=(exist, validation_level),
                     callback=callback)
                 self.results.append(result)

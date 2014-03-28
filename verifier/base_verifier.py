@@ -24,7 +24,9 @@ import os
 import re
 import sys
 import time
+import threading
 import multiprocessing
+import Queue
 
 from django.db import transaction
 from stacktach import message_service
@@ -218,3 +220,56 @@ class Verifier(object):
 
     def exchange(self):
         pass
+
+
+class VerifierRequest(object):
+    def __init__(self, *args, **kwargs):
+        self.is_ready = False
+        self.success = False
+        self.args = args
+        self.kwargs = kwargs
+        self.result = None
+
+    def ready(self):
+        return self.is_ready
+
+    def successful(self):
+        return self.success
+
+    def get(self):
+        return self.result
+
+
+class VerifierThread(threading.Thread):
+    def __init__(self, queue, target, callback):
+        super(VerifierThread, self).__init__()
+        self.queue = queue
+        self.target = target
+        self.callback = callback
+
+    def run(self):
+        while True:
+            request = self.queue.get(block=True)
+            result = self.target(*request.args)
+            if self.callback:
+                self.callback(result)
+            request.result = result
+            request.success = True
+            request.is_ready = True
+
+
+class VerifierTheadPool(object):
+    def __init__(self, count, target, callback):
+        self.threads = []
+        self.queue = Queue.Queue()
+
+        for i in range(0, count):
+            self.threads.append(VerifierThread(self.queue, target, callback))
+
+        for thread in self.threads:
+            thread.start()
+
+    def apply_async(self, func, args, callback):
+        request = VerifierRequest(*args)
+        self.queue.put(request)
+        return request
